@@ -182,10 +182,7 @@ class LayoutDesigner(tk.Tk):
             
             if determined_idx != -1:
                 self.active_canvas_idx = determined_idx
-            else: # Fallback or if truly unknown (e.g. event on resize handle which is canvas item)
-                # If handler is for resize, canvas_idx from lambda is likely correct
-                # For other item events, _dispatch_item_event should set it.
-                # This path needs care. For now, trust canvas_idx from lambda if not item.
+            else: 
                 self.active_canvas_idx = canvas_idx
 
         else: # Direct click on canvas background
@@ -233,9 +230,8 @@ class LayoutDesigner(tk.Tk):
         file_menu.add_separator(); file_menu.add_command(label="終了", command=self.quit)
 
     def setup_toolbox(self):
-        ttk.Label(self.toolbox_frame, text="ツールボックス", font=("Helvetica", 14)).pack(pady=5) # Reduced pady
+        ttk.Label(self.toolbox_frame, text="ツールボックス", font=("Helvetica", 14)).pack(pady=5) 
         
-        # --- Window Size Controls ---
         size_control_frame = ttk.LabelFrame(self.toolbox_frame, text="ウィンドウサイズ")
         size_control_frame.pack(fill="x", padx=10, pady=(5,10))
 
@@ -252,13 +248,11 @@ class LayoutDesigner(tk.Tk):
         apply_size_button = ttk.Button(size_control_frame, text="サイズ適用", command=self.apply_window_size)
         apply_size_button.grid(row=2, column=0, columnspan=2, pady=5)
 
-        # --- Sash Position Control ---
         sash_control_frame = ttk.LabelFrame(self.toolbox_frame, text="分割位置 (左画面 幅)")
         sash_control_frame.pack(fill="x", padx=10, pady=(0,10))
 
         self.sash_pos_var = tk.StringVar()
-        # 初期サッシ位置を取得して設定 (PanedWindowが描画された後でないと正確な値は取れない)
-        self.after(100, self._update_sash_entry_on_release) # 少し遅延させて初期値を設定
+        self.after(100, self._update_sash_entry_on_release) 
 
         self.sash_pos_entry = ttk.Entry(sash_control_frame, textvariable=self.sash_pos_var, width=7)
         self.sash_pos_entry.pack(side="left", padx=5, pady=5)
@@ -271,7 +265,7 @@ class LayoutDesigner(tk.Tk):
 
         widget_types = ["Button", "Label", "Checkbutton", "Radiobutton", "Entry", "Combobox"]
         for name in widget_types:
-            ttk.Button(self.toolbox_frame, text=name, command=lambda n=name: self.add_widget(n.lower())).pack(fill="x", padx=10, pady=2) # Reduced pady
+            ttk.Button(self.toolbox_frame, text=name, command=lambda n=name: self.add_widget(n.lower())).pack(fill="x", padx=10, pady=2) 
         
         ttk.Button(self.toolbox_frame, text="Image", command=self.add_image_to_canvas).pack(fill="x", padx=10, pady=2)
 
@@ -307,39 +301,30 @@ class LayoutDesigner(tk.Tk):
         try:
             new_pos = int(self.sash_pos_var.get())
             if new_pos > 0:
-                 # PanedWindowのサッシは0番目から数える
-                 # また、sashposは現在のPanedWindowのサイズに対する相対位置で設定されるため、
-                 # 左ペインの幅を直接指定するには、その値を使う
                 self.main_paned_window.sashpos(0, new_pos)
             else:
                 tkinter.messagebox.showerror("入力エラー", "分割位置は正の整数である必要があります。")
         except ValueError:
             tkinter.messagebox.showerror("入力エラー", "分割位置には整数値を入力してください。")
         except tk.TclError as e:
-            # sashpos はウィンドウが表示されていないと失敗することがある
             print(f"サッシ位置設定エラー: {e}")
             tkinter.messagebox.showwarning("設定エラー", "サッシ位置の設定に失敗しました。ウィンドウが完全に表示されているか確認してください。")
 
 
     def _update_size_entries_on_configure(self, event=None):
-        # event.widget が self (Tk root) の場合のみ処理
         if event and event.widget == self:
             self.window_width_var.set(str(self.winfo_width()))
             self.window_height_var.set(str(self.winfo_height()))
     
     def _update_sash_entry_on_release(self, event=None):
-        # PanedWindow が存在し、サッシが1つ以上ある場合
         if hasattr(self, 'main_paned_window') and self.main_paned_window.panes():
             try:
-                # 最初のサッシの位置（左ペインの幅）を取得
                 sash_position = self.main_paned_window.sashpos(0)
                 self.sash_pos_var.set(str(sash_position))
             except tk.TclError:
-                # ウィンドウがまだ完全に描画されていない場合などにエラーになることがある
-                pass # 初期表示時は無視
+                pass 
 
     def setup_properties(self):
-        # Property editor setup remains largely the same, but its interactions change
         ttk.Label(self.property_frame, text="プロパティエディタ", font=("Helvetica", 14)).pack(pady=10)
         
         text_frame = ttk.Frame(self.property_frame); text_frame.pack(fill="x", padx=10, pady=5)
@@ -662,12 +647,21 @@ class LayoutDesigner(tk.Tk):
         active_canvas = self._get_active_canvas()
         active_selected_ids = self._get_active_selected_item_ids()
         active_drag_bboxes = self._get_active_drag_selected_items_start_bboxes()
-        
         self._set_active_dragged_item_id(item_id)
 
         canvas_x = event.x 
         canvas_y = event.y
-        
+        # --- 追加: ドラッグ開始時のマウス座標とウィジェット中心のオフセットを記録 ---
+        bbox = active_canvas.bbox(item_id)
+        if bbox:
+            center_x = (bbox[0] + bbox[2]) / 2
+            center_y = (bbox[1] + bbox[3]) / 2
+            offset_x = canvas_x - center_x
+            offset_y = canvas_y - center_y
+            self._active_drag_offset = (offset_x, offset_y)
+        else:
+            self._active_drag_offset = (0, 0)
+        # ...existing code...
         try:
             if event.widget != active_canvas: 
                 abs_x = event.widget.winfo_rootx() + event.x
@@ -676,7 +670,6 @@ class LayoutDesigner(tk.Tk):
                 canvas_y = abs_y - active_canvas.winfo_rooty()
         except Exception as e:
             pass 
-
         self._set_active_drag_start_coords(canvas_x, canvas_y)
 
         is_shift_pressed = (event.state & 0x0001) != 0
@@ -750,46 +743,60 @@ class LayoutDesigner(tk.Tk):
         if not dragged_item_id_from_state or not active_selected_ids or active_resize_h:
             return
 
+        # Convert event coordinates to be relative to the active_canvas
         current_mouse_x_canvas = event.x
         current_mouse_y_canvas = event.y
-
+        if event.widget != active_canvas:
+            # event.widget is the actual tk/ttk widget that received the event
+            try:
+                abs_x = event.widget.winfo_rootx() + event.x
+                abs_y = event.widget.winfo_rooty() + event.y
+                current_mouse_x_canvas = abs_x - active_canvas.winfo_rootx()
+                current_mouse_y_canvas = abs_y - active_canvas.winfo_rooty()
+            except tk.TclError: # Widget might be in a weird state during drag/destroy
+                # This can happen if the widget is destroyed while dragging
+                return
+            except Exception: # Catch any other potential errors during coordinate conversion
+                return
+                
         drag_delta_x = current_mouse_x_canvas - start_drag_x
         drag_delta_y = current_mouse_y_canvas - start_drag_y
-        
         effective_delta_x = drag_delta_x
         effective_delta_y = drag_delta_y
-        
         if dragged_item_id_from_state and dragged_item_id_from_state in start_bboxes:
             primary_start_bbox = start_bboxes[dragged_item_id_from_state]
-            if not primary_start_bbox: return
-
+            if not primary_start_bbox: 
+                return
             primary_new_top_left_x_raw = primary_start_bbox[0] + drag_delta_x
             primary_new_top_left_y_raw = primary_start_bbox[1] + drag_delta_y
-            
             snapped_primary_tl_x, snapped_primary_tl_y = self._snap_to_grid(primary_new_top_left_x_raw, primary_new_top_left_y_raw)
-            
             effective_delta_x = snapped_primary_tl_x - primary_start_bbox[0]
             effective_delta_y = snapped_primary_tl_y - primary_start_bbox[1]
 
         for current_item_id_in_selection in active_selected_ids:
             if current_item_id_in_selection in start_bboxes:
                 start_bbox = start_bboxes[current_item_id_in_selection]
-                if not start_bbox: continue
-
-                new_top_left_x = start_bbox[0] + effective_delta_x
-                new_top_left_y = start_bbox[1] + effective_delta_y
-
+                if not start_bbox:
+                    continue
                 item_info = next((item for item in active_canvas_items if item['id'] == current_item_id_in_selection), None)
                 if item_info:
                     if item_info['type'] == 'widget':
                         width = item_info.get('width', start_bbox[2] - start_bbox[0])
                         height = item_info.get('height', start_bbox[3] - start_bbox[1])
-                        center_x = new_top_left_x + width / 2
-                        center_y = new_top_left_y + height / 2
+                        # --- ここでドラッグ中の中心座標を正しく計算 ---
+                        if current_item_id_in_selection == dragged_item_id_from_state:
+                            # 主アイテムはスナップ・オフセット考慮
+                            center_x = snapped_primary_tl_x + width / 2
+                            center_y = snapped_primary_tl_y + height / 2
+                        else:
+                            # 他の選択アイテムは相対移動
+                            center_x = (start_bbox[0] + effective_delta_x) + width / 2
+                            center_y = (start_bbox[1] + effective_delta_y) + height / 2
                         active_canvas.coords(current_item_id_in_selection, center_x, center_y)
                     elif item_info['type'] == 'image':
+                        new_top_left_x = start_bbox[0] + effective_delta_x
+                        new_top_left_y = start_bbox[1] + effective_delta_y
                         active_canvas.coords(current_item_id_in_selection, new_top_left_x, new_top_left_y)
-        
         self.update_highlight() 
 
     def on_multi_item_release(self, event, item_id=None): 
@@ -990,6 +997,7 @@ class LayoutDesigner(tk.Tk):
                     elif new_values_list: self.selected_widget.current(0)
                     else: self.selected_widget.set("")
                 except tk.TclError: pass 
+        # After property change, widget might resize. Update highlight which re-reads bbox.
         self.after(10, self.update_highlight) 
 
     def on_font_property_change(self, *args):
@@ -1004,6 +1012,7 @@ class LayoutDesigner(tk.Tk):
         if self.prop_font_italic.get(): style_parts.append("italic")
         try:
             self.selected_widget.config(font=(family, size, " ".join(style_parts)))
+            # After font change, widget might resize. Update highlight.
             self.after(50, self.update_highlight) 
         except tk.TclError as e: print(f"Font Error: {e}")
 
@@ -1094,10 +1103,12 @@ class LayoutDesigner(tk.Tk):
                 except Exception as e:
                     print(f"リサイズ用元画像読み込みエラー: {e}")
                     tkinter.messagebox.showerror("リサイズエラー", f"リサイズ用の元画像を読み込めませんでした:\n{e}")
-                    self._set_active_resize_handle(None); return
+                    self._set_active_resize_handle(None); 
+                    return
         elif self.selected_item_info['type'] == 'widget':
-            self._set_active_resize_original_pil_image(None)
-        
+            self._set_active_resize_original_pil_image(None) # Ensure it's None for widgets
+
+        # Unbind general canvas drag handlers and bind resize-specific ones
         active_canvas.unbind("<B1-Motion>")
         active_canvas.unbind("<ButtonRelease-1>")
         active_canvas.bind("<B1-Motion>", lambda e, c_idx=self.active_canvas_idx: \
@@ -1397,6 +1408,7 @@ class LayoutDesigner(tk.Tk):
                                          'size': abs(font_actual['size']), 
                                          'weight': str(font_actual['weight']), 
                                          'slant': str(font_actual['slant'])}
+               
                 except tk.TclError: pass 
                 
                 if hasattr(widget_obj, 'cget') and 'anchor' in widget_obj.keys():
@@ -1408,18 +1420,21 @@ class LayoutDesigner(tk.Tk):
                     fg_opt = 'foreground' if isinstance(widget_obj, (ttk.Label, ttk.Entry, ttk.Combobox)) else 'fg'
                     colors['fg'] = str(widget_obj.cget(fg_opt))
                 except tk.TclError: pass
+
+
+
                 try:
-                    if isinstance(widget_obj, (tk.Button, tk.Checkbutton, tk.Radiobutton)): 
-                         colors['bg'] = str(widget_obj.cget('bg'))
-                except tk.TclError: pass
-                if colors: item_data['colors'] = colors
+                    if isinstance(widget_obj, (tk.Button, tk.Checkbutton, tk.Radiobutton)):
+                        colors['bg'] = str(widget_obj.cget('bg'))
+                except tk.TclError:
+                    pass
+                if colors:
+                    item_data['colors'] = colors
 
                 if isinstance(widget_obj, ttk.Combobox):
                     item_data['values'] = self._get_python_list_from_tcl_list(widget_obj.cget('values'))
-            
             elif item_type == 'image':
                 item_data['path'] = str(item_info_loop['path'])
-            
             full_layout_data["items"].append(item_data)
             
         try:
